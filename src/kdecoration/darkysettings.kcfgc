@@ -1,0 +1,6 @@
+File=darkysettingsdata.kcfg
+ClassName=InternalSettings
+NameSpace=Darky
+Singleton=false
+Mutators=true
+GlobalEnums=true

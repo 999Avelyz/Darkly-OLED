@@ -1,0 +1,6 @@
+[Misc]
+Name=Darky
+ConfigPage=kstyle_config/darkystyleconfig
+Comment=Widget style for Qt Applications
+[KDE]
+WidgetStyle=Darky

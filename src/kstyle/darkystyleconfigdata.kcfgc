@@ -1,0 +1,6 @@
+File=darky.kcfg
+ClassName=StyleConfigData
+NameSpace=Darky
+Singleton=true
+Mutators=true
+GlobalEnums=true
