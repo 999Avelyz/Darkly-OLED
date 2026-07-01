@@ -1,38 +1,10 @@
 #!/usr/bin/env bash
-# =============================================================================
-#  darklyoled-gtk.sh   (GTK2 + GTK3 + GTK4)
-#
-#  Legge la palette KDE  ~/.local/share/color-schemes/DarklyOLED.colors
-#  e ne DERIVA i colori GTK di Darkly, generando un tema OLED autonomo:
-#
-#     ~/.local/share/themes/Darkly-OLED   (gtk-2.0, gtk-3.0, gtk-4.0)
-#
-#  Poi applica gli stessi colori a ~/.gtkrc-2.0, ~/.config/gtk-3.0 e gtk-4.0,
-#  cosi' diventano OLED:
-#    - le app GTK2               (via gtk-color-scheme in ~/.gtkrc-2.0 + tema)
-#    - le app GTK3/GTK4 "pure"   (seguono il nome del tema)
-#    - le app libadwaita         (ignorano il tema, leggono la config gtk-4.0)
-#
-#  Mappa palette -> GTK:
-#    [Colors:Window]    Background -> sfondo finestre/header/titlebar
-#    [Colors:View]      Background -> sfondo viste/liste/campi testo
-#    [Colors:Button]    Background -> sfondo bottoni
-#    [Colors:Selection] Background -> accento (evidenziazione)
-#    Decoration/Link/Negative/Neutral/Positive -> focus, link, err/warn/ok
-#    [WM] active/inactiveForeground -> testo titlebar attivo/inattivo
-#  I grigi degli stati "disabilitato" restano quelli standard di Darkly.
-#
-#  Uso:    bash darklyoled-gtk.sh
-#  Prereq: tema "Darkly" gia' installato (per i widget + asset GTK2/3).
-#  Sicuro: backup .bak-TIMESTAMP di ogni file toccato.
-# =============================================================================
 
 set -euo pipefail
 
-# ---- Configurazione ----------------------------------------------------------
 THEME_DIR_NAME="Darkly-OLED"
 THEME_DISPLAY_NAME="Darkly (OLED)"
-APPLY=1                               # 1 = applica anche alla config (consigliato)
+APPLY=1
 
 COLORS_FILE="$HOME/.local/share/color-schemes/DarklyOLED.colors"
 DEST="$HOME/.local/share/themes/$THEME_DIR_NAME"
@@ -41,8 +13,9 @@ CFG4="$HOME/.config/gtk-4.0"
 GRC2="$HOME/.gtkrc-2.0"
 TS="$(date +%Y%m%d-%H%M%S)"
 
-# ---- Utility -----------------------------------------------------------------
-ini_get() { # $1=section  $2=key
+echo "✨ Creating Darkly OLED Theme..."
+
+ini_get() {
   awk -v sec="$1" -v key="$2" '
     { sub(/\r$/,"") }
     /^\[/ { l=$0; gsub(/[ \t]/,"",l); in_sec=(l=="[" sec "]"); next }
@@ -52,30 +25,39 @@ ini_get() { # $1=section  $2=key
       if(in_sec && k==key){ print v; exit } }
   ' "$COLORS_FILE"
 }
-req() { local out; out="$(ini_get "$1" "$2")"
-  [ -n "$out" ] || { echo "!! Manca [$1] $2 in $COLORS_FILE" >&2; exit 1; }; printf '%s' "$out"; }
-rgb2hex() { local r g b; IFS=',' read -r r g b <<< "$1"
-  printf '#%02x%02x%02x' "${r// /}" "${g// /}" "${b// /}"; }
-backup() { [ -f "$1" ] && cp -a "$1" "$1.bak-$TS" && echo "   backup: $1.bak-$TS" || true; }
-set_ini_key() { local file="$1" key="$2" val="$3"
+
+req() {
+  local out; out="$(ini_get "$1" "$2")"
+  [ -n "$out" ] || { echo "❌ Error: missing [$1] $2 in $COLORS_FILE" >&2; exit 1; }
+  printf '%s' "$out"
+}
+
+rgb2hex() {
+  local r g b; IFS=',' read -r r g b <<< "$1"
+  printf '#%02x%02x%02x' "${r// /}" "${g// /}" "${b// /}"
+}
+
+backup() {
+  [ -f "$1" ] && cp -a "$1" "$1.bak-$TS" || true
+}
+
+set_ini_key() {
+  local file="$1" key="$2" val="$3"
   if [ ! -f "$file" ]; then printf '[Settings]\n%s=%s\n' "$key" "$val" > "$file"; return; fi
   if grep -q "^${key}=" "$file"; then sed -i "s|^${key}=.*|${key}=${val}|" "$file"
   elif grep -q '^\[Settings\]' "$file"; then sed -i "/^\[Settings\]/a ${key}=${val}" "$file"
   else printf '[Settings]\n%s=%s\n' "$key" "$val" >> "$file"; fi
 }
 
-# ---- 0. Controlli ------------------------------------------------------------
-[ -f "$COLORS_FILE" ] || { echo "!! Palette non trovata: $COLORS_FILE"; exit 1; }
+[ -f "$COLORS_FILE" ] || { echo "❌ OLED Palette not found!"; exit 1; }
+
 BASE=""
 for d in "$HOME/.local/share/themes/Darkly" "$HOME/.themes/Darkly" \
          "/usr/local/share/themes/Darkly" "/usr/share/themes/Darkly"; do
   [ -d "$d/gtk-3.0" ] && { BASE="$d"; break; }
 done
-[ -n "$BASE" ] || { echo "!! Tema 'Darkly' non installato."; exit 1; }
-echo ">> Palette:   $COLORS_FILE"
-echo ">> Base:      $BASE"
+[ -n "$BASE" ] || { echo "❌ Base 'Darkly' theme not installed!"; exit 1; }
 
-# ---- 1. Estrai i colori dalla palette ---------------------------------------
 WINDOW_BG=$(rgb2hex "$(req Colors:Window    BackgroundNormal)")
 WINDOW_FG=$(rgb2hex "$(req Colors:Window    ForegroundNormal)")
 VIEW_BG=$(rgb2hex   "$(req Colors:View      BackgroundNormal)")
@@ -97,12 +79,8 @@ TB_BG=$(rgb2hex          "$(req WM activeBackground)")
 TB_FG=$(rgb2hex          "$(req WM activeForeground)")
 TB_FG_INACTIVE=$(rgb2hex "$(req WM inactiveForeground)")
 
-echo ">> Colori: finestre/viste $WINDOW_BG/$VIEW_BG  bottoni $BUTTON_BG  accento $SEL_BG"
-
-# ---- 2a. colors.css (GTK3/GTK4) ---------------------------------------------
 emit_colors() {
 cat <<EOF
-/* Darkly (OLED) - colors.css generato da DarklyOLED.colors ($TS) */
 @define-color borders_breeze #3c3c3c;
 @define-color content_view_bg_breeze $VIEW_BG;
 @define-color error_color_backdrop_breeze $NEG;
@@ -191,23 +169,18 @@ EOF
 }
 COLORS_CSS="$(emit_colors)"
 
-# ---- 2b. gtk-color-scheme (GTK2) --------------------------------------------
-# Ruoli standard GTK2 (Murrine/Clearlooks/Adwaita li rispettano).
 G2SCHEME="fg_color:$WINDOW_FG\nbg_color:$WINDOW_BG\nbase_color:$VIEW_BG\ntext_color:$VIEW_FG\nselected_bg_color:$SEL_BG\nselected_fg_color:$SEL_FG\ntooltip_bg_color:$TIP_BG\ntooltip_fg_color:$TIP_FG\nlink_color:$LINK"
 
-# ---- 3. Crea il tema autonomo Darkly-OLED -----------------------------------
 rm -rf "$DEST"
 mkdir -p "$DEST/gtk-3.0" "$DEST/gtk-4.0"
 
-# --- GTK3 ---
 cp -a "$BASE/gtk-3.0/." "$DEST/gtk-3.0/"
 [ -f "$DEST/gtk-3.0/gtk.css" ] && mv "$DEST/gtk-3.0/gtk.css" "$DEST/gtk-3.0/gtk-base.css"
 printf '%s\n' "$COLORS_CSS" > "$DEST/gtk-3.0/colors.css"
-printf "/* Darkly (OLED) */\n@import 'gtk-base.css';\n@import 'colors.css';\n" > "$DEST/gtk-3.0/gtk.css"
+printf "@import 'gtk-base.css';\n@import 'colors.css';\n" > "$DEST/gtk-3.0/gtk.css"
 [ -f "$DEST/gtk-3.0/gtk-dark.css" ] && \
-  printf "/* Darkly (OLED) */\n@import 'gtk-base.css';\n@import 'colors.css';\n" > "$DEST/gtk-3.0/gtk-dark.css"
+  printf "@import 'gtk-base.css';\n@import 'colors.css';\n" > "$DEST/gtk-3.0/gtk-dark.css"
 
-# --- GTK4 ---
 G4SRC=""
 [ -f "$CFG4/gtk-darkly.css" ] && G4SRC="$CFG4"
 [ -z "$G4SRC" ] && [ -f "$BASE/gtk-4.0/gtk-darkly.css" ] && G4SRC="$BASE/gtk-4.0"
@@ -216,35 +189,30 @@ if [ -n "$G4SRC" ]; then
   [ -d "$G4SRC/darkly-gtk-assets" ] && cp -a "$G4SRC/darkly-gtk-assets" "$DEST/gtk-4.0/"
   [ -d "$G4SRC/assets" ]            && cp -a "$G4SRC/assets"            "$DEST/gtk-4.0/"
   printf '%s\n' "$COLORS_CSS" > "$DEST/gtk-4.0/colors.css"
-  printf "/* Darkly (OLED) */\n@import 'gtk-darkly.css';\n@import 'colors.css';\n" > "$DEST/gtk-4.0/gtk.css"
+  printf "@import 'gtk-darkly.css';\n@import 'colors.css';\n" > "$DEST/gtk-4.0/gtk.css"
 else
-  echo "!! gtk-darkly.css non trovato: salto la parte GTK4 del tema."
   rmdir "$DEST/gtk-4.0" 2>/dev/null || true
 fi
 
-# --- GTK2 ---
 mkdir -p "$DEST/gtk-2.0"
 if [ -d "$BASE/gtk-2.0" ]; then
   cp -a "$BASE/gtk-2.0/." "$DEST/gtk-2.0/"
   if [ -f "$DEST/gtk-2.0/gtkrc" ]; then
     mv "$DEST/gtk-2.0/gtkrc" "$DEST/gtk-2.0/gtkrc-base"
-    { echo "# Darkly (OLED)"
-      echo 'include "gtkrc-base"'
+    { echo 'include "gtkrc-base"'
       printf 'gtk-color-scheme = "%s"\n' "$G2SCHEME"; } > "$DEST/gtk-2.0/gtkrc"
   else
-    printf '# Darkly (OLED)\ngtk-color-scheme = "%s"\n' "$G2SCHEME" > "$DEST/gtk-2.0/gtkrc"
+    printf 'gtk-color-scheme = "%s"\n' "$G2SCHEME" > "$DEST/gtk-2.0/gtkrc"
   fi
-  echo ">> GTK2: widget dalla base + colori OLED."
 else
-  printf '# Darkly (OLED) - solo colori (Darkly non ha gtk-2.0)\ngtk-color-scheme = "%s"\n' "$G2SCHEME" > "$DEST/gtk-2.0/gtkrc"
-  echo ">> GTK2: solo colori (base senza gtk-2.0)."
+  printf 'gtk-color-scheme = "%s"\n' "$G2SCHEME" > "$DEST/gtk-2.0/gtkrc"
 fi
 
 cat > "$DEST/index.theme" <<IDX
 [Desktop Entry]
 Type=X-GNOME-Metatheme
 Name=$THEME_DISPLAY_NAME
-Comment=Darkly con palette OLED derivata da DarklyOLED.colors
+Comment=Darkly OLED
 Encoding=UTF-8
 
 [X-GNOME-Metatheme]
@@ -253,19 +221,14 @@ IconTheme=Papirus-Dark
 CursorTheme=material_dark_cursors
 ButtonLayout=icon:minimize,maximize,close
 IDX
-echo ">> Tema creato in: $DEST"
 
-# ---- 4. Applica alla config -------------------------------------------------
 if [ "$APPLY" = "1" ]; then
-  echo ">> Applico alla config (con backup):"
   mkdir -p "$CFG3" "$CFG4"
 
-  # GTK3
   backup "$CFG3/colors.css"; backup "$CFG3/gtk.css"
   printf '%s\n' "$COLORS_CSS" > "$CFG3/colors.css"
   printf "@import 'colors.css';\n" > "$CFG3/gtk.css"
 
-  # GTK4
   if [ ! -f "$CFG4/gtk-darkly.css" ] && [ -f "$DEST/gtk-4.0/gtk-darkly.css" ]; then
     cp -a "$DEST/gtk-4.0/gtk-darkly.css" "$CFG4/"
     [ -d "$DEST/gtk-4.0/darkly-gtk-assets" ] && cp -a "$DEST/gtk-4.0/darkly-gtk-assets" "$CFG4/"
@@ -279,14 +242,12 @@ if [ "$APPLY" = "1" ]; then
     printf "@import 'colors.css';\n" > "$CFG4/gtk.css"
   fi
 
-  # Nome tema per GTK3/4 "pure"
   backup "$CFG3/settings.ini"; backup "$CFG4/settings.ini"
   set_ini_key "$CFG3/settings.ini" gtk-theme-name "$THEME_DIR_NAME"
   set_ini_key "$CFG4/settings.ini" gtk-theme-name "$THEME_DIR_NAME"
   command -v gsettings >/dev/null && \
     gsettings set org.gnome.desktop.interface gtk-theme "$THEME_DIR_NAME" 2>/dev/null || true
 
-  # GTK2: ~/.gtkrc-2.0 (nome tema + gtk-color-scheme OLED, blocco idempotente)
   [ -f "$GRC2" ] && backup "$GRC2"
   touch "$GRC2"
   if grep -q '^[[:space:]]*gtk-theme-name' "$GRC2"; then
@@ -294,22 +255,8 @@ if [ "$APPLY" = "1" ]; then
   else
     printf 'gtk-theme-name="%s"\n' "$THEME_DIR_NAME" >> "$GRC2"
   fi
-  sed -i '/# >>> Darkly-OLED colors >>>/,/# <<< Darkly-OLED colors <<</d' "$GRC2"
-  { echo "# >>> Darkly-OLED colors >>>"
-    printf 'gtk-color-scheme = "%s"\n' "$G2SCHEME"
-    echo "# <<< Darkly-OLED colors <<<"; } >> "$GRC2"
+  sed -i '/gtk-color-scheme = /d' "$GRC2"
+  printf 'gtk-color-scheme = "%s"\n' "$G2SCHEME" >> "$GRC2"
 fi
 
-echo ""
-echo "============================================================"
-echo " Fatto.  Tema: $DEST"
-if [ "$APPLY" = "1" ]; then
-echo " Config aggiornata: ~/.gtkrc-2.0 (GTK2), ~/.config/gtk-3.0 e gtk-4.0."
-echo ""
-echo " Riavvia le app GTK (o logout/login) per vedere i neri anche su GTK2."
-else
-echo ""
-echo " Applica con: gsettings set org.gnome.desktop.interface gtk-theme '$THEME_DIR_NAME'"
-fi
-echo " Backup .bak-$TS accanto a ogni file toccato."
-echo "============================================================"
+echo "🎉 Done!"
