@@ -67,7 +67,7 @@ The process is fully automated. The script will install Qt6/KF6 dependencies, co
 Clone the repository and enter the folder:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/Darky.git
+git clone https://github.com/999Avelyz/Darky.git
 cd Darky
 ```
 
