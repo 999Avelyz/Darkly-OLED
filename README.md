@@ -11,7 +11,7 @@ First, download the necessary files (the palette and the patcher script) from th
 
 ```bash
 cd ~
-git clone https://github.com/999Avely/Darkly-OLED.git
+git clone https://github.com/999Avelyz/Darkly-OLED.git
 cd Darkly-OLED
 ```
 *(Keep this terminal open or remember where this folder is, you will need these files later).*
